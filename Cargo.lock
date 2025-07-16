@@ -185,7 +185,7 @@ dependencies = [
 
 [[package]]
 name = "minesweeper"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "macroquad",
  "rand",

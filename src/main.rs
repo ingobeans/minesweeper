@@ -28,11 +28,8 @@ impl Minefield {
             // update neighbours
             for neighbour_y in y.saturating_sub(1)..(y + 2).min(size) {
                 for neighbour_x in x.saturating_sub(1)..(x + 2).min(size) {
-                    match &mut field[neighbour_x][neighbour_y].0 {
-                        Tile::Clear(value) => {
-                            *value += 1;
-                        }
-                        _ => {}
+                    if let Tile::Clear(value) = &mut field[neighbour_x][neighbour_y].0 {
+                        *value += 1;
                     }
                 }
             }
@@ -113,7 +110,7 @@ async fn main() {
     let field_size = 16;
     let mut minefield = Minefield::new(field_size, field_size * field_size / 4);
     let scaling = 30.0;
-    let (mut offset_x, mut offset_y) = calculate_offset(scaling, field_size);
+    let (mut offset_x, mut offset_y);
     loop {
         (offset_x, offset_y) = calculate_offset(scaling, field_size);
         clear_background(BACKGROUND_COLOR);
