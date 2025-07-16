@@ -1,4 +1,4 @@
-use macroquad::prelude::*;
+use macroquad::{miniquad::window::screen_size, prelude::*};
 
 #[derive(Clone, Copy)]
 enum Tile {
@@ -39,11 +39,11 @@ impl Minefield {
         }
         Self { mines: field }
     }
-    fn draw(&self, scaling: f32) {
+    fn draw(&self, scaling: f32, offset_x: f32, offset_y: f32) {
         for (x, column) in self.mines.iter().enumerate() {
             for (y, tile) in column.iter().enumerate() {
-                let tile_x = x as f32 * scaling;
-                let tile_y = y as f32 * scaling;
+                let tile_x = x as f32 * scaling + offset_x;
+                let tile_y = y as f32 * scaling + offset_y;
                 let text_x = tile_x + scaling * 0.25;
                 let text_y = tile_y + scaling * 0.75;
                 match tile.1 {
@@ -102,24 +102,48 @@ const BACKGROUND_COLOR: Color = Color::from_hex(0x0f0f0f);
 const TILE_COLOR: Color = Color::from_hex(0x1d2021);
 const UNKNOWN_TILE_COLOR: Color = Color::from_hex(0x2D3031);
 
+fn calculate_offset(scaling: f32, field_size: usize) -> (f32, f32) {
+    let (width, _) = screen_size();
+    let x = (width - field_size as f32 * scaling) / 2.0;
+    (x, scaling)
+}
+
 #[macroquad::main("minesweeper")]
 async fn main() {
     let field_size = 16;
     let mut minefield = Minefield::new(field_size, field_size * field_size / 4);
     let scaling = 30.0;
+    let (mut offset_x, mut offset_y) = calculate_offset(scaling, field_size);
     loop {
+        (offset_x, offset_y) = calculate_offset(scaling, field_size);
         clear_background(BACKGROUND_COLOR);
-        minefield.draw(scaling);
+
+        // handle input
         let (mouse_x, mouse_y) = mouse_position();
-        if is_mouse_button_pressed(MouseButton::Left) {
-            let tile_x = (mouse_x / scaling) as usize;
-            let tile_y = (mouse_y / scaling) as usize;
-            if tile_x > 0 && tile_x < field_size {
-                if tile_y > 0 && tile_y < field_size {
-                    minefield.mines[tile_x][tile_y].1 = TileData::Known;
+        let mouse_tile_x = ((mouse_x - offset_x) / scaling) as usize;
+        let mouse_tile_y = ((mouse_y - offset_y) / scaling) as usize;
+        let mouse_tile_in_bounds = mouse_x > offset_x
+            && mouse_tile_x < field_size
+            && mouse_y > offset_y
+            && mouse_tile_y < field_size;
+
+        if is_mouse_button_pressed(MouseButton::Left) && mouse_tile_in_bounds {
+            minefield.mines[mouse_tile_x][mouse_tile_y].1 = TileData::Known;
+        }
+        if is_mouse_button_pressed(MouseButton::Right) && mouse_tile_in_bounds {
+            let tile = &mut minefield.mines[mouse_tile_x][mouse_tile_y].1;
+            match tile {
+                TileData::Flagged => {
+                    *tile = TileData::Unknown;
                 }
+                TileData::Unknown => {
+                    *tile = TileData::Flagged;
+                }
+                _ => {}
             }
         }
+
+        minefield.draw(scaling, offset_x, offset_y);
         next_frame().await
     }
 }
