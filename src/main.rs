@@ -17,26 +17,40 @@ struct Minefield {
     mines: Vec<Vec<(Tile, TileData)>>,
 }
 impl Minefield {
-    fn new(size: usize, amount: usize) -> Self {
+    fn empty(size: usize) -> Self {
         let row = vec![(Tile::Clear(0), TileData::Unknown); size];
-        let mut field = vec![row; size];
+        let field = vec![row; size];
+        Self { mines: field }
+    }
+    /// Generate a new minefield "around" a mouse click,
+    /// ensuring that the clicked tile is safe, with a value of 0
+    fn new_around_click(size: usize, mines_amount: usize, click_x: usize, click_y: usize) -> Self {
         let rng = rand::RandGenerator::new();
         rng.srand(macroquad::miniquad::date::now() as u64);
 
-        for _ in 0..amount {
-            let x = rng.gen_range(0, size);
-            let y = rng.gen_range(0, size);
-            field[x][y].0 = Tile::Mine;
-            // update neighbours
-            for neighbour_y in y.saturating_sub(1)..(y + 2).min(size) {
-                for neighbour_x in x.saturating_sub(1)..(x + 2).min(size) {
-                    if let Tile::Clear(value) = &mut field[neighbour_x][neighbour_y].0 {
-                        *value += 1;
+        // Keep regenerating minefields until one fills the conditions
+        loop {
+            let mut field = Self::empty(size);
+
+            for _ in 0..mines_amount {
+                let x = rng.gen_range(0, size);
+                let y = rng.gen_range(0, size);
+                field.mines[x][y].0 = Tile::Mine;
+                // update neighbours
+                for neighbour_y in y.saturating_sub(1)..(y + 2).min(size) {
+                    for neighbour_x in x.saturating_sub(1)..(x + 2).min(size) {
+                        if let Tile::Clear(value) = &mut field.mines[neighbour_x][neighbour_y].0 {
+                            *value += 1;
+                        }
                     }
                 }
             }
+            if let Tile::Clear(value) = field.mines[click_x][click_y].0 {
+                if value == 0 {
+                    return field;
+                }
+            }
         }
-        Self { mines: field }
     }
     fn draw(&self, scaling: f32, offset_x: f32, offset_y: f32) {
         for (x, column) in self.mines.iter().enumerate() {
@@ -110,9 +124,12 @@ fn calculate_offset(scaling: f32, field_size: usize) -> (f32, f32) {
 #[macroquad::main("minesweeper")]
 async fn main() {
     let field_size = 16;
-    let mut minefield = Minefield::new(field_size, field_size * field_size / 4);
+    let mut minefield = Minefield::empty(field_size);
     let scaling = 30.0;
     let (mut offset_x, mut offset_y);
+
+    let mut first_click = true;
+
     loop {
         (offset_x, offset_y) = calculate_offset(scaling, field_size);
         clear_background(BACKGROUND_COLOR);
@@ -127,6 +144,17 @@ async fn main() {
             && mouse_tile_y < field_size;
 
         if is_mouse_button_pressed(MouseButton::Left) && mouse_tile_in_bounds {
+            if first_click {
+                // on the first click, generate the actual minefield around that click
+                // this means that wherever you initially click, that spot will be guaranteed to be safe
+                minefield = Minefield::new_around_click(
+                    field_size,
+                    field_size * field_size / 4,
+                    mouse_tile_x,
+                    mouse_tile_y,
+                );
+                first_click = false;
+            }
             minefield.mines[mouse_tile_x][mouse_tile_y].1 = TileData::Known;
         }
         if is_mouse_button_pressed(MouseButton::Right) && mouse_tile_in_bounds {
