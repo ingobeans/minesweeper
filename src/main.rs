@@ -21,6 +21,8 @@ impl Minefield {
         let row = vec![(Tile::Clear(0), TileData::Unknown); size];
         let mut field = vec![row; size];
         let rng = rand::RandGenerator::new();
+        rng.srand(macroquad::miniquad::date::now() as u64);
+
         for _ in 0..amount {
             let x = rng.gen_range(0, size);
             let y = rng.gen_range(0, size);
@@ -84,7 +86,7 @@ impl Minefield {
                                 text_x,
                                 text_y,
                                 scaling,
-                                COLORS[value as usize - 1],
+                                TILE_VALUE_COLORS[value as usize - 1],
                             );
                         }
                     },
@@ -94,7 +96,7 @@ impl Minefield {
     }
 }
 
-const COLORS: [Color; 8] = [BLUE, GREEN, RED, PURPLE, RED, ORANGE, YELLOW, YELLOW];
+const TILE_VALUE_COLORS: [Color; 8] = [BLUE, GREEN, RED, PURPLE, RED, ORANGE, YELLOW, WHITE];
 const BACKGROUND_COLOR: Color = Color::from_hex(0x0f0f0f);
 const TILE_COLOR: Color = Color::from_hex(0x1d2021);
 const UNKNOWN_TILE_COLOR: Color = Color::from_hex(0x2D3031);
