@@ -161,7 +161,14 @@ impl Minefield {
             }
             if flagged_neighbours >= value {
                 for (x, y) in unknown_neighbours {
-                    self.reveal_tile(x, y)
+                    self.reveal_tile(x, y);
+
+                    // if the revealed tile is a clear tile with value 0, also expand it, for a recursive expansion
+                    if let Tile::Clear(value) = self.field[x][y].0 {
+                        if value == 0 {
+                            self.try_expand_tile(x, y);
+                        }
+                    }
                 }
             }
         }
