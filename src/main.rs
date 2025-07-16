@@ -182,7 +182,7 @@ const UNKNOWN_TILE_COLOR: Color = Color::from_hex(0x2D3031);
 
 fn calculate_offset(scaling: f32, field_size: usize) -> (f32, f32) {
     let (width, _) = screen_size();
-    let x = (width - field_size as f32 * scaling) / 2.0;
+    let x = ((width - field_size as f32 * scaling) / 2.0).round();
     (x, scaling)
 }
 
