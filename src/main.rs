@@ -11,17 +11,25 @@ enum TileData {
     Unknown,
     Known,
     Flagged,
+    WrongFlag,
 }
 
 struct Minefield {
     field: Vec<Vec<(Tile, TileData)>>,
     size: usize,
+    has_lost: bool,
+    remaining_flags: usize,
 }
 impl Minefield {
     fn empty(size: usize) -> Self {
         let row = vec![(Tile::Clear(0), TileData::Unknown); size];
         let field = vec![row; size];
-        Self { field, size }
+        Self {
+            field,
+            size,
+            has_lost: false,
+            remaining_flags: 0,
+        }
     }
     /// Generate a new minefield "around" a mouse click,
     /// ensuring that the clicked tile is safe, with a value of 0
@@ -32,6 +40,7 @@ impl Minefield {
         // Keep regenerating minefields until one fills the conditions
         loop {
             let mut field = Self::empty(size);
+            field.remaining_flags = mines_amount;
             let mut remaining_mines = mines_amount;
 
             while remaining_mines > 0 {
@@ -85,6 +94,16 @@ impl Minefield {
                         );
                         draw_text("P", text_x, text_y, scaling, RED);
                     }
+                    TileData::WrongFlag => {
+                        draw_rectangle(
+                            tile_x,
+                            tile_y,
+                            scaling - 1.0,
+                            scaling - 1.0,
+                            UNKNOWN_TILE_COLOR,
+                        );
+                        draw_text("P", text_x, text_y, scaling, BLACK);
+                    }
                     TileData::Known => match tile.0 {
                         Tile::Mine => {
                             draw_rectangle(tile_x, tile_y, scaling - 1.0, scaling - 1.0, RED);
@@ -114,6 +133,22 @@ impl Minefield {
             }
         }
     }
+    fn flag_tile(&mut self, x: usize, y: usize) {
+        let tile = &mut self.field[x][y].1;
+        match tile {
+            TileData::Flagged => {
+                *tile = TileData::Unknown;
+                self.remaining_flags += 1;
+            }
+            TileData::Unknown => {
+                if self.remaining_flags > 0 {
+                    *tile = TileData::Flagged;
+                    self.remaining_flags -= 1;
+                }
+            }
+            _ => {}
+        }
+    }
     /// Handles a click on the minefield. If clicked tile is unknown, it is revealed.
     /// If it is known, it is expanded
     fn handle_click(&mut self, x: usize, y: usize) {
@@ -133,7 +168,9 @@ impl Minefield {
     fn reveal_tile(&mut self, x: usize, y: usize) {
         let tile = &mut self.field[x][y];
         if let Tile::Mine = tile.0 {
-            println!("game over!!");
+            self.has_lost = true;
+            self.reveal_all_mines();
+            return;
         }
         tile.1 = TileData::Known;
     }
@@ -173,6 +210,26 @@ impl Minefield {
             }
         }
     }
+    /// Reveals all mines.
+    /// Called on defeat.
+    fn reveal_all_mines(&mut self) {
+        for row in &mut self.field {
+            for tile in row {
+                match tile.0 {
+                    Tile::Mine => {
+                        if let TileData::Unknown = tile.1 {
+                            tile.1 = TileData::Known;
+                        }
+                    }
+                    Tile::Clear(_) => {
+                        if let TileData::Flagged = tile.1 {
+                            tile.1 = TileData::WrongFlag;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 const TILE_VALUE_COLORS: [Color; 8] = [BLUE, GREEN, RED, PURPLE, RED, ORANGE, YELLOW, WHITE];
@@ -183,7 +240,7 @@ const UNKNOWN_TILE_COLOR: Color = Color::from_hex(0x2D3031);
 fn calculate_offset(scaling: f32, field_size: usize) -> (f32, f32) {
     let (width, _) = screen_size();
     let x = ((width - field_size as f32 * scaling) / 2.0).round();
-    (x, scaling)
+    (x, scaling * 2.0)
 }
 
 #[macroquad::main("minesweeper")]
@@ -193,13 +250,18 @@ async fn main() {
     let scaling = 30.0;
     let (mut offset_x, mut offset_y);
 
+    let mut started_click_on_button = false;
+
     let mut first_click = true;
 
     loop {
         (offset_x, offset_y) = calculate_offset(scaling, field_size);
         clear_background(BACKGROUND_COLOR);
 
-        // handle input
+        // draw minefield
+        minefield.draw(scaling, offset_x, offset_y);
+
+        // handle clicking tiles
         let (mouse_x, mouse_y) = mouse_position();
         let mouse_tile_x = ((mouse_x - offset_x) / scaling) as usize;
         let mouse_tile_y = ((mouse_y - offset_y) / scaling) as usize;
@@ -208,7 +270,8 @@ async fn main() {
             && mouse_y > offset_y
             && mouse_tile_y < field_size;
 
-        if is_mouse_button_pressed(MouseButton::Left) && mouse_tile_in_bounds {
+        if !minefield.has_lost && is_mouse_button_pressed(MouseButton::Left) && mouse_tile_in_bounds
+        {
             if first_click {
                 // on the first click, generate the actual minefield around that click
                 // this means that wherever you initially click, that spot will be guaranteed to be safe
@@ -225,20 +288,53 @@ async fn main() {
 
             minefield.handle_click(mouse_tile_x, mouse_tile_y);
         }
-        if is_mouse_button_pressed(MouseButton::Right) && mouse_tile_in_bounds {
-            let tile = &mut minefield.field[mouse_tile_x][mouse_tile_y].1;
-            match tile {
-                TileData::Flagged => {
-                    *tile = TileData::Unknown;
-                }
-                TileData::Unknown => {
-                    *tile = TileData::Flagged;
-                }
-                _ => {}
-            }
+        if !minefield.has_lost
+            && is_mouse_button_pressed(MouseButton::Right)
+            && mouse_tile_in_bounds
+        {
+            minefield.flag_tile(mouse_tile_x, mouse_tile_y);
         }
 
-        minefield.draw(scaling, offset_x, offset_y);
+        // handle ui
+
+        // handle restart button
+        let button_x = offset_x + field_size as f32 * scaling / 2.0;
+        let button_y = scaling * 0.5;
+        let mouse_over_restart_button = mouse_x > button_x
+            && mouse_x < button_x + scaling
+            && mouse_y > button_y
+            && mouse_y < button_y + scaling;
+
+        // handle clicking restart button
+        if is_mouse_button_pressed(MouseButton::Left) && mouse_over_restart_button {
+            started_click_on_button = true;
+        }
+        if is_mouse_button_released(MouseButton::Left) {
+            if mouse_over_restart_button && started_click_on_button {
+                minefield = Minefield::empty(field_size);
+                first_click = true;
+            }
+            started_click_on_button = false;
+        }
+
+        let clicking_button = is_mouse_button_down(MouseButton::Left) && mouse_over_restart_button;
+        let button_color = if clicking_button && started_click_on_button {
+            ORANGE
+        } else {
+            YELLOW
+        };
+        draw_rectangle(button_x, button_y, scaling, scaling, button_color);
+        draw_text(":)", button_x, button_y + scaling * 0.75, scaling, BLACK);
+
+        // draw flag counter
+        draw_text(
+            &minefield.remaining_flags.to_string(),
+            offset_x,
+            button_y + scaling * 0.75,
+            scaling,
+            RED,
+        );
+
         next_frame().await
     }
 }
