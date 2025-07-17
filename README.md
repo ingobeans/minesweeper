@@ -1,5 +1,6 @@
 # minesweeper
-![image](https://github.com/user-attachments/assets/2440ccda-b11f-4401-b3a9-2a45be7d27eb)
+![image](https://github.com/user-attachments/assets/0606ea3c-270c-4272-af53-f35acdc0d320)
+
 
 minesweeper clone in rust with macroquad !!! :)
 
