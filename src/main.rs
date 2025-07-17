@@ -219,6 +219,8 @@ async fn main() {
                     mouse_tile_y,
                 );
                 first_click = false;
+                // extra click so it expands automatically
+                minefield.handle_click(mouse_tile_x, mouse_tile_y);
             }
 
             minefield.handle_click(mouse_tile_x, mouse_tile_y);
