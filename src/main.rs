@@ -18,6 +18,7 @@ struct Minefield {
     field: Vec<Vec<(Tile, TileData)>>,
     size: usize,
     has_lost: bool,
+    has_won: bool,
     remaining_flags: usize,
 }
 impl Minefield {
@@ -28,6 +29,7 @@ impl Minefield {
             field,
             size,
             has_lost: false,
+            has_won: false,
             remaining_flags: 0,
         }
     }
@@ -133,6 +135,39 @@ impl Minefield {
             }
         }
     }
+    fn game_over(&self) -> bool {
+        self.has_lost || self.has_won
+    }
+    /// Update self.has_won by checking if all flags are placed and correct and no tiles are unknown
+    fn check_win(&mut self) {
+        if self.has_lost {
+            self.has_won = false;
+            return;
+        }
+        if self.remaining_flags != 0 {
+            self.has_won = false;
+            return;
+        }
+        for row in &self.field {
+            for tile in row {
+                match tile.1 {
+                    TileData::Flagged => {
+                        if let Tile::Clear(_) = tile.0 {
+                            self.has_won = false;
+                            return;
+                        }
+                    }
+                    TileData::Unknown => {
+                        self.has_won = false;
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.has_won = true;
+    }
+    /// Make a tile flagged
     fn flag_tile(&mut self, x: usize, y: usize) {
         let tile = &mut self.field[x][y].1;
         match tile {
@@ -144,6 +179,9 @@ impl Minefield {
                 if self.remaining_flags > 0 {
                     *tile = TileData::Flagged;
                     self.remaining_flags -= 1;
+                    if self.remaining_flags == 0 {
+                        self.check_win();
+                    }
                 }
             }
             _ => {}
@@ -163,6 +201,7 @@ impl Minefield {
             }
             _ => {}
         }
+        self.check_win();
     }
     /// Reveals a tile
     fn reveal_tile(&mut self, x: usize, y: usize) {
@@ -270,7 +309,9 @@ async fn main() {
             && mouse_y > offset_y
             && mouse_tile_y < field_size;
 
-        if !minefield.has_lost && is_mouse_button_pressed(MouseButton::Left) && mouse_tile_in_bounds
+        if !minefield.game_over()
+            && is_mouse_button_pressed(MouseButton::Left)
+            && mouse_tile_in_bounds
         {
             if first_click {
                 // on the first click, generate the actual minefield around that click
@@ -288,7 +329,7 @@ async fn main() {
 
             minefield.handle_click(mouse_tile_x, mouse_tile_y);
         }
-        if !minefield.has_lost
+        if !minefield.game_over()
             && is_mouse_button_pressed(MouseButton::Right)
             && mouse_tile_in_bounds
         {
@@ -331,6 +372,21 @@ async fn main() {
             &minefield.remaining_flags.to_string(),
             offset_x,
             button_y + scaling * 0.75,
+            scaling,
+            RED,
+        );
+
+        let text = if minefield.has_lost {
+            "you lose"
+        } else if minefield.has_won {
+            "you win!"
+        } else {
+            ""
+        };
+        draw_text(
+            text,
+            offset_x,
+            scaling * field_size as f32 + offset_y + scaling,
             scaling,
             RED,
         );
