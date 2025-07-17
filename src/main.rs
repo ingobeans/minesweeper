@@ -287,6 +287,20 @@ async fn main() {
     let field_size = 16;
     let mut minefield = Minefield::empty(field_size);
     let scaling = 32.0;
+
+    // load button textures
+    let button = Texture2D::from_image(
+        &Image::from_file_with_format(include_bytes!("../button.png"), Some(ImageFormat::Png))
+            .unwrap(),
+    );
+    let button_pressed = Texture2D::from_image(
+        &Image::from_file_with_format(
+            include_bytes!("../button_pressed.png"),
+            Some(ImageFormat::Png),
+        )
+        .unwrap(),
+    );
+
     let (mut offset_x, mut offset_y);
 
     let mut started_click_on_button = false;
@@ -359,13 +373,12 @@ async fn main() {
         }
 
         let clicking_button = is_mouse_button_down(MouseButton::Left) && mouse_over_restart_button;
-        let button_color = if clicking_button && started_click_on_button {
-            ORANGE
+        let button_texture = if clicking_button && started_click_on_button {
+            &button_pressed
         } else {
-            YELLOW
+            &button
         };
-        draw_rectangle(button_x, button_y, scaling, scaling, button_color);
-        draw_text(":)", button_x, button_y + scaling * 0.75, scaling, BLACK);
+        draw_texture(button_texture, button_x, button_y, WHITE);
 
         // draw flag counter
         draw_text(
