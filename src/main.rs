@@ -286,7 +286,7 @@ fn calculate_offset(scaling: f32, field_size: usize) -> (f32, f32) {
 async fn main() {
     let field_size = 16;
     let mut minefield = Minefield::empty(field_size);
-    let scaling = 30.0;
+    let scaling = 32.0;
     let (mut offset_x, mut offset_y);
 
     let mut started_click_on_button = false;
